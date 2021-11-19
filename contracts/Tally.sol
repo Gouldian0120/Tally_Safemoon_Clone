@@ -714,18 +714,18 @@ contract Tally is Context, IERC20, Ownable {
     mapping (address => bool) private _isExcludedFromFee;
 
     mapping (address => bool) private _isExcluded;
-    address[] private _excluded;
+    address[] public _excluded;
 
-    address public _marketingWallet;
-    address public _charityWallet;
-    address public _buyBackWallet;
+    address private _marketingWallet;
+    address private _charityWallet;
+    address private _buyBackWallet;
 
-    address public _raffleWallet;
-    address public _poolWallet;
-    address public _poolCharityWallet; 
+    address private _raffleWallet;
+    address private _poolWallet;
+    address private _poolCharityWallet; 
 
     uint256 private constant MAX = ~uint256(0);     //~uint256(0) = 2**256-1
-    uint256 private _tTotal = 1000000000 * 10**6 * 10**9;
+    uint256 private _tTotal = 1000000000 * 10**9;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
@@ -739,11 +739,14 @@ contract Tally is Context, IERC20, Ownable {
 
     uint8 private _txKind;
 
-    uint256 public _taxFee = 100;       // 100 -> 1%, 10000 -> 100%
+    uint256 public _taxFee = 500;       // 500 -> 5%, 10000 -> 100%
     uint256 private _previousTaxFee = _taxFee;
 
     uint256 public _taxSellFee = 500;
+    uint256 private _previousSellTaxFee = _taxSellFee;
+    
     uint256 public _taxBuyFee = 300;
+    uint256 private _previousBuyTaxFee = _taxBuyFee;
     
     uint256 public _liquidityFee = 300;
     uint256 private _previousLiquidityFee = _liquidityFee;
@@ -794,7 +797,12 @@ contract Tally is Context, IERC20, Ownable {
     constructor () public {
         _rOwned[_msgSender()] = _rTotal;
         
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F);
+        // bsc mainnet
+//      IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F);
+
+        // bsc testnet
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1);
+        
          // Create a uniswap pair for this new token
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
@@ -808,6 +816,7 @@ contract Tally is Context, IERC20, Ownable {
 
         _raffleWallet = 0x4d4d58393Ec97e75249b19B016bbB14303ac9D0A;
         _poolWallet = 0x34524c4ddC648BE2C18A60d24b34A7c94Bc78Dcf;
+        _poolCharityWallet = 0x63f976b389DF606A4504848c57EaFe644230ccee;
         
         //exclude owner and this contract from fee
         _isExcludedFromFee[owner()] = true;
@@ -816,13 +825,13 @@ contract Tally is Context, IERC20, Ownable {
         _isExcludedFromFee[_marketingWallet] = true;
         _isExcludedFromFee[_charityWallet] = true;
         _isExcludedFromFee[_buyBackWallet] = true;
-
+        
         _isExcludedFromFee[_raffleWallet] = true;
         _isExcludedFromFee[_poolWallet] = true;
         _isExcludedFromFee[_poolCharityWallet] = true;
 
         //exclude marketing and charity wallet from reflection
-        _isExcluded[_marketingWallet] = true;
+//      _isExcluded[_marketingWallet] = true;
         _isExcluded[_charityWallet] = true;
 
         _isExcluded[_raffleWallet] = true;
@@ -1028,6 +1037,30 @@ contract Tally is Context, IERC20, Ownable {
     function setPoolFeePercent(uint256 poolFee) external onlyOwner() {
         _poolFee = poolFee;
     }
+
+    function setMarketingWallet(address account) external onlyOwner() {
+        _marketingWallet = account;
+    }
+
+    function setCharityWallet(address account) external onlyOwner() {
+        _charityWallet = account;
+    }
+
+    function setBuyBackWallet(address account) external onlyOwner() {
+        _buyBackWallet = account;
+    }
+
+    function setRaffleWallet(address account) external onlyOwner() {
+        _raffleWallet = account;
+    }
+
+    function setPoolWallet(address account) external onlyOwner() {
+        _poolWallet = account;
+    }
+    
+    function setPoolCharityWallet(address account) external onlyOwner() {
+        _poolCharityWallet = account;
+    }
    
     function setMaxTxPercent(uint256 maxTxPercent) external onlyOwner() {
         _maxTxAmountPercent = maxTxPercent;
@@ -1204,24 +1237,22 @@ contract Tally is Context, IERC20, Ownable {
         );
     }
     
-    function removeAllFee() private {
-        if(_taxFee == 0 && _liquidityFee == 0 
-            && _burnFee == 0 && _marketingFee == 0 
-            && _charityFee == 0 && _buyBackFee == 0
-            && _raffleFee == 0 && _poolFee == 0) return;
+    function removeMainFee() private {
+        if(_taxFee == 0 && _taxSellFee == 0 
+            && _taxBuyFee == 0 && _liquidityFee == 0) return;
         
         _previousTaxFee = _taxFee;
+        _previousSellTaxFee = _taxSellFee;
+        _previousBuyTaxFee = _taxBuyFee;
         _previousLiquidityFee = _liquidityFee;
         
         _taxFee = 0;
+        _taxSellFee = 0;
+        _taxBuyFee = 0;
         _liquidityFee = 0;
-
-        removeOtherFee();
-        removeRaffleFee();
-        removePoolFee();
     }
 
-    function removeOtherFee() private {
+    function removeDirectWalletFee() private {
         if(_burnFee == 0 && _marketingFee == 0 
             && _charityFee == 0 && _buyBackFee == 0) return;
         
@@ -1250,16 +1281,14 @@ contract Tally is Context, IERC20, Ownable {
         _poolFee = 0;
     }
     
-    function restoreAllFee() private {
+    function restoreMainFee() private {
         _taxFee = _previousTaxFee;
+        _taxSellFee = _previousSellTaxFee;
+        _taxBuyFee = _previousBuyTaxFee;
         _liquidityFee = _previousLiquidityFee;
-
-        restoreOtherFee();
-        restoreRaffleFee();
-        restorePoolFee();
     }
 
-    function restoreOtherFee() private {
+    function restoreDirectWalletFee() private {
         _burnFee = _previousBurnFee;
         _marketingFee = _previousMarketingFee;
         _charityFee = _previousCharityFee;
@@ -1402,31 +1431,52 @@ contract Tally is Context, IERC20, Ownable {
     }
 
     //this method is responsible for taking all fee, if takeFee is true
-    function _tokenTransfer(address sender, address recipient, uint256 amount,bool takeFee) private {
-        if(!takeFee)
-            removeAllFee();
+    function _tokenTransfer(address sender, address recipient, uint256 amount, bool takeFee) private {
+        bool buySellFee = false;
+        bool businessRaffleFee = false;
+        bool businessPoolFee = false;
+        
+        if (sender == uniswapV2Pair || recipient == uniswapV2Pair){
+            _txKind = recipient == uniswapV2Pair ? TX_SELL : TX_BUY;
+        }
         else{
-            if (sender == uniswapV2Pair || recipient == uniswapV2Pair){
-                restoreOtherFee();
-
-                _txKind = recipient == uniswapV2Pair ? TX_SELL : TX_BUY;
-            }
-            else{
-                removeOtherFee();
-
+            _txKind = TX_NORMAL;
+        }
+        
+        if(!takeFee)
+        {
+            removeMainFee();
+            
+            // When transfer from and to RaffleWallet or PoolWallet, takeFee is always false 
+            // because these two wallets are NO FEE wallets.
+            if (_txKind == TX_NORMAL)
+            {
                 if (recipient == _raffleWallet)
-                    restoreRaffleFee();
-                else
-                    removeRaffleFee();
-
-                if (sender == _poolWallet || recipient == _poolWallet)
-                    restorePoolFee();
-                else
-                    removePoolFee();
-
-                _txKind = TX_NORMAL;
+                {
+                    businessRaffleFee = true;
+                }
+                
+                if (recipient == _poolWallet || sender == _poolWallet)
+                {
+                    businessPoolFee = true;
+                }
             }
         }
+        else
+        {
+            if (_txKind == TX_SELL || _txKind == TX_BUY) {
+                buySellFee = true;
+            }
+        }
+        
+        if (!buySellFee)
+            removeDirectWalletFee();
+            
+        if (!businessRaffleFee)
+            removeRaffleFee();
+            
+        if (!businessPoolFee)
+            removePoolFee();
         
         if (_isExcluded[sender] && !_isExcluded[recipient]) {
             _transferFromExcluded(sender, recipient, amount, _txKind);
@@ -1441,9 +1491,18 @@ contract Tally is Context, IERC20, Ownable {
         }
         
         if(!takeFee)
-            restoreAllFee();
+            restoreMainFee();
+            
+        if (!buySellFee)
+            restoreDirectWalletFee();
+            
+        if (!businessRaffleFee)
+            restoreRaffleFee();
+            
+        if (!businessPoolFee)
+            restorePoolFee();
     }
-
+    
     function _transferStandard(address sender, address recipient, uint256 tAmount, uint8 txKind) private {
         uint256[12] memory values = _getValues(tAmount, txKind);
 
@@ -1460,9 +1519,9 @@ contract Tally is Context, IERC20, Ownable {
         _takePool(values[11]);
 
         _reflectFee(values[2], values[4]);
+        
         emit Transfer(sender, recipient, values[3]);
     }
-
     function _transferToExcluded(address sender, address recipient, uint256 tAmount, uint8 txKind) private {
         uint256[12] memory values = _getValues(tAmount, txKind);
         
