@@ -1163,6 +1163,12 @@ contract Tally is Context, IERC20, Ownable {
     function _takeMarketing(uint256 tMarketing) private {
         if(tMarketing == 0) return;
 
+        uint256 currentRate =  _getRate();
+        uint256 rMarketing = tMarketing.mul(currentRate);
+        _rOwned[address(this)] = _rOwned[address(this)].add(rMarketing);
+        if(_isExcluded[address(this)])
+            _tOwned[address(this)] = _tOwned[address(this)].add(tMarketing);
+
         swapAndSendToWallet(tMarketing, _marketingWallet);
     }
 
@@ -1174,6 +1180,12 @@ contract Tally is Context, IERC20, Ownable {
     function _takeBuyBack(uint256 tBuyBack) private {
         if(tBuyBack == 0) return;
 
+        uint256 currentRate =  _getRate();
+        uint256 rBuyBack = tBuyBack.mul(currentRate);
+        _rOwned[address(this)] = _rOwned[address(this)].add(rBuyBack);
+        if(_isExcluded[address(this)])
+            _tOwned[address(this)] = _tOwned[address(this)].add(tBuyBack);
+            
         swapAndSendToWallet(tBuyBack, _buyBackWallet);
     }
 
